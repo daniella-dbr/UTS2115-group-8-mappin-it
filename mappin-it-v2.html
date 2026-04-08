@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mappin' It — Interactive MDW Map of Singapore</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sky:#c5ddf0;--teal:#45b8c8;--teal-dark:#329aaa;
+  --text:#2c3e50;--text-light:#6a8090;
+  --shadow:0 6px 24px rgba(0,0,0,.14);--radius:18px;--nav-h:72px;
+}
+body{font-family:'Nunito',sans-serif;background:var(--sky);color:var(--text);height:100vh;overflow:hidden}
+
+/* ── NAV ── */
+#main-nav{position:fixed;top:0;left:0;right:0;height:var(--nav-h);background:rgba(197,221,240,.92);backdrop-filter:blur(14px);border-bottom:2px solid rgba(255,255,255,.55);display:flex;align-items:center;padding:0 28px;gap:8px;z-index:1000}
+.logo-wrap{display:flex;flex-direction:column;line-height:1.1;margin-right:16px}
+.logo{font-family:'Fredoka One',cursive;font-size:26px;color:#3a6ea8;letter-spacing:2px;text-shadow:2px 2px 0 rgba(255,255,255,.7)}
+.logo-sub{font-size:9px;color:var(--text-light);font-weight:700;letter-spacing:.4px;max-width:220px;line-height:1.3}
+.nav-links{display:flex;gap:4px}
+.nav-btn{background:none;border:none;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:15px;color:var(--text);padding:8px 18px;border-radius:50px;transition:all .22s}
+.nav-btn:hover,.nav-btn.active{background:rgba(255,255,255,.75);color:var(--teal)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.user-profile-btn{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 14px 6px 6px;border-radius:50px;background:rgba(255,255,255,.75);border:2px solid rgba(255,255,255,.9);transition:all .22s}
+.user-profile-btn:hover{background:#fff;box-shadow:var(--shadow)}
+.user-avatar-nav{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,#f5a623,#f07fa0)}
+.user-avatar-nav img{width:100%;height:100%;object-fit:cover}
+.user-name{font-weight:800;font-size:15px}
+.verified-badge{width:18px;height:18px;background:#1da1f2;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:900;flex-shrink:0}
+
+/* ── MAP ── */
+#map-container{position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;z-index:1}
+#map{width:100%;height:100%}
+.leaflet-container{background:#a8cde0;font-family:'Nunito',sans-serif}
+.leaflet-tile-pane{filter:saturate(.8) brightness(1.06) hue-rotate(1deg)}
+
+/* Custom pin CSS */
+.map-pin-wrap{display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:transform .22s;filter:drop-shadow(0 3px 7px rgba(0,0,0,.3))}
+.map-pin-wrap:hover{transform:scale(1.22) translateY(-5px)}
+.pin-head{border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2.5px solid rgba(255,255,255,.85);position:relative;display:flex;align-items:center;justify-content:center}
+.pin-head::after{content:'';position:absolute;width:36%;height:36%;background:rgba(255,255,255,.55);border-radius:50%;transform:rotate(45deg)}
+.pin-stem{width:3px;background:rgba(0,0,0,.22);border-radius:0 0 3px 3px;margin-top:-1px}
+
+/* Permanent location labels */
+.leaflet-tooltip.perm-loc-label{background:var(--teal);border:2.5px solid rgba(255,255,255,.6);border-radius:30px;padding:7px 16px 7px 8px;font-family:'Fredoka One',cursive;font-size:14px;color:#fff;box-shadow:0 5px 16px rgba(0,0,0,.25);white-space:nowrap;cursor:pointer;transition:all .2s}
+.leaflet-tooltip.perm-loc-label:hover{background:var(--teal-dark)}
+.leaflet-tooltip.perm-loc-label.leaflet-tooltip-right::before{border-right-color:rgba(255,255,255,.5)}
+.leaflet-tooltip.perm-loc-label.leaflet-tooltip-left::before{border-left-color:rgba(255,255,255,.5)}
+.label-inner{display:flex;align-items:center;gap:8px}
+.label-letter{background:rgba(255,255,255,.3);width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex-shrink:0}
+
+/* ── PLACE A PIN BUTTON ── */
+.place-pin-btn{position:fixed;bottom:30px;right:28px;z-index:500;background:var(--teal);color:#fff;border:none;cursor:pointer;font-family:'Fredoka One',cursive;font-size:17px;letter-spacing:1px;padding:14px 26px 14px 18px;border-radius:50px;display:flex;align-items:center;gap:10px;box-shadow:0 7px 26px rgba(69,184,200,.5);transition:all .3s cubic-bezier(.34,1.56,.64,1)}
+.place-pin-btn:hover{transform:translateY(-4px) scale(1.04);box-shadow:0 12px 32px rgba(69,184,200,.65)}
+.place-pin-btn.pulsing{animation:pulse-btn 1.6s ease-in-out infinite}
+@keyframes pulse-btn{0%,100%{box-shadow:0 7px 26px rgba(69,184,200,.5)}50%{box-shadow:0 7px 40px rgba(69,184,200,.9),0 0 0 10px rgba(69,184,200,.15)}}
+.want-to-share{position:fixed;bottom:44px;right:195px;z-index:499;text-align:right;font-weight:900;font-size:13.5px;color:#e84040;line-height:1.4;pointer-events:none;text-shadow:1px 1px 0 rgba(255,255,255,.6)}
+
+/* ── CONTRIBUTION PANELS ── */
+.contrib-overlay{position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;z-index:200;pointer-events:none;display:flex}
+.contrib-list-panel{width:360px;background:var(--sky);pointer-events:all;overflow-y:auto;border-right:2px solid rgba(255,255,255,.65);transform:translateX(-100%);transition:transform .42s cubic-bezier(.34,1.56,.64,1)}
+.contrib-list-panel.open{transform:translateX(0)}
+.contrib-detail-panel{width:430px;background:#fff;pointer-events:all;overflow-y:auto;transform:translateX(-790px);opacity:0;transition:transform .42s cubic-bezier(.34,1.56,.64,1) .08s,opacity .3s .08s;box-shadow:6px 0 24px rgba(0,0,0,.1)}
+.contrib-detail-panel.open{transform:translateX(0);opacity:1}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:rgba(255,255,255,.72);border-bottom:2px solid rgba(255,255,255,.5);backdrop-filter:blur(10px);position:sticky;top:0;z-index:10}
+.panel-close{background:rgba(0,0,0,.1);border:none;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;transition:background .2s}
+.panel-close:hover{background:rgba(0,0,0,.2)}
+.loc-title{font-family:'Fredoka One',cursive;font-size:21px;color:var(--text)}
+.cat-badge{padding:6px 16px;border-radius:50px;font-weight:800;font-size:13px;color:#fff}
+.contrib-list{padding:12px}
+.contrib-item{background:#fff;border-radius:16px;padding:13px 15px;margin-bottom:9px;cursor:pointer;display:flex;align-items:center;gap:11px;transition:all .22s;box-shadow:0 2px 8px rgba(0,0,0,.06);border:2px solid transparent}
+.contrib-item:hover,.contrib-item.active{background:#f0f8ff;transform:translateX(5px);border-color:var(--teal);box-shadow:0 4px 14px rgba(69,184,200,.2)}
+.contrib-avatar-sm{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden}
+.contrib-avatar-sm img{width:100%;height:100%;object-fit:cover}
+.contrib-info{flex:1;min-width:0}
+.contrib-user-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap}
+.contrib-user-name{font-weight:800;font-size:13.5px}
+.public-tag{font-size:11px;color:var(--text-light);font-weight:700}
+.contrib-preview{font-size:12.5px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arrow-icon{color:var(--teal);font-size:20px;font-weight:900;flex-shrink:0}
+/* Detail panel */
+.detail-win-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1.5px solid #eee;position:sticky;top:0;background:#fff;z-index:10}
+.win-dots{display:flex;gap:7px}
+.win-dot{width:12px;height:12px;border-radius:50%;cursor:pointer;transition:opacity .2s}
+.win-dot:hover{opacity:.7}
+.detail-inner-btn{background:var(--teal);color:#fff;border:none;cursor:pointer;font-family:'Fredoka One',cursive;font-size:13px;letter-spacing:.8px;padding:9px 18px;border-radius:50px;display:flex;align-items:center;gap:7px;transition:all .22s}
+.detail-inner-btn:hover{transform:scale(1.04);box-shadow:0 4px 14px rgba(69,184,200,.4)}
+.detail-body{padding:20px 22px}
+.detail-title{font-family:'Fredoka One',cursive;font-size:22px;margin-bottom:3px}
+.detail-loc{font-size:12.5px;color:var(--text-light);font-weight:700;margin-bottom:14px}
+.detail-media-grid{display:grid;gap:7px;margin-bottom:14px;border-radius:14px;overflow:hidden;min-height:120px;background:#f4f4f4;border:2px dashed #ddd;align-items:center;justify-items:center;padding:16px}
+.detail-media-grid.has-media{padding:0;border:none}
+.detail-media-img{width:100%;height:140px;object-fit:cover;display:block}
+.detail-media-video{width:100%;height:140px;object-fit:cover;display:block}
+.emoji-placeholder{width:100%;height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:32px;gap:5px;background:linear-gradient(135deg,#e8f4f8,#d0eaf5)}
+.detail-text{font-size:14.5px;line-height:1.75;color:var(--text)}
+.detail-edit-btn{display:inline-flex;align-items:center;gap:7px;background:#f0f8ff;border:2px solid var(--teal);color:var(--teal);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;padding:8px 16px;border-radius:50px;margin-top:14px;transition:all .22s}
+.detail-edit-btn:hover{background:var(--teal);color:#fff}
+.fyi-tag{display:inline-flex;align-items:center;gap:6px;background:#f0f4ff;color:#4a6fa5;font-weight:800;font-size:12px;padding:4px 12px;border-radius:50px;margin-bottom:10px}
+
+/* ── PAGES ── */
+.page{position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;z-index:100;overflow-y:auto;padding:36px 40px;background:var(--sky);transform:translateY(18px);opacity:0;pointer-events:none;transition:all .3s ease}
+.page.active{transform:translateY(0);opacity:1;pointer-events:all}
+
+/* About */
+.about-wrap{max-width:780px;margin:0 auto}
+.about-hero{text-align:center;margin-bottom:36px}
+.about-hero h1{font-family:'Fredoka One',cursive;font-size:44px;color:#3a6ea8;letter-spacing:3px;margin-bottom:10px}
+.about-card{background:#fff;border-radius:var(--radius);padding:38px;box-shadow:var(--shadow);margin-bottom:22px}
+.about-card p{font-size:15.5px;line-height:1.85;margin-bottom:14px;color:var(--text)}
+.about-card p strong{color:var(--teal-dark)}
+.about-cta{background:linear-gradient(135deg,var(--teal),#3a6ea8);border-radius:var(--radius);padding:36px;text-align:center;color:#fff}
+.about-cta h3{font-family:'Fredoka One',cursive;font-size:24px;margin-bottom:8px;letter-spacing:1px}
+.about-cta p{margin-bottom:18px;opacity:.92;font-size:14.5px}
+.guidebook-btn{background:#fff;color:var(--teal);border:none;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:15px;padding:14px 32px;border-radius:50px;transition:all .22s}
+.guidebook-btn:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(0,0,0,.2)}
+
+/* Guidebook */
+.guide-wrap{max-width:820px;margin:0 auto}
+.guide-hero{text-align:center;margin-bottom:36px}
+.guide-hero h1{font-family:'Fredoka One',cursive;font-size:40px;color:#3a6ea8;letter-spacing:2px;margin-bottom:8px}
+.guide-section{background:#fff;border-radius:var(--radius);padding:32px;box-shadow:var(--shadow);margin-bottom:20px}
+.guide-section h2{font-family:'Fredoka One',cursive;font-size:22px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.guide-step{display:flex;gap:14px;margin-bottom:16px;align-items:flex-start}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0;margin-top:2px}
+.step-text{font-size:14.5px;line-height:1.75}
+.step-text strong{color:var(--teal-dark)}
+.cat-legend{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.cat-legend-item{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:12px;background:#f8f8f8;font-weight:700;font-size:13.5px}
+.cat-dot-lg{width:16px;height:16px;border-radius:50%;flex-shrink:0}
+.guide-back-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--teal);color:#fff;border:none;cursor:pointer;font-family:'Fredoka One',cursive;font-size:18px;letter-spacing:1px;padding:16px 36px;border-radius:50px;margin:32px auto 0;box-shadow:0 7px 26px rgba(69,184,200,.4);transition:all .3s cubic-bezier(.34,1.56,.64,1)}
+.guide-back-btn:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(69,184,200,.6)}
+
+/* Profile */
+.profile-wrap{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.profile-card{background:#fff;border-radius:var(--radius);padding:30px;box-shadow:var(--shadow)}
+.profile-hdr{display:flex;align-items:center;gap:18px;margin-bottom:22px}
+.profile-avatar-lg{width:78px;height:78px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:38px;position:relative;flex-shrink:0;overflow:hidden;background:linear-gradient(135deg,#f5a623,#f07fa0);cursor:pointer;transition:all .22s}
+.profile-avatar-lg:hover::after{content:'✏️ Edit';position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;border-radius:50%}
+.profile-avatar-lg img{width:100%;height:100%;object-fit:cover}
+.avatar-none{width:100%;height:100%;background:#3a6ea8;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.profile-name-lg{font-family:'Fredoka One',cursive;font-size:26px;display:flex;align-items:center;gap:9px}
+.profile-country{font-size:13.5px;color:var(--text-light);font-weight:700;margin-top:3px}
+.contribs-label{font-weight:800;font-size:14px;color:var(--text-light);margin-bottom:11px;text-transform:uppercase;letter-spacing:.5px}
+.profile-item{background:#f5faff;border-radius:14px;padding:13px 15px;margin-bottom:9px;cursor:pointer;display:flex;align-items:center;gap:11px;transition:all .22s;border:2px solid transparent}
+.profile-item:hover,.profile-item.active{background:#fff;border-color:var(--teal);box-shadow:0 4px 14px rgba(69,184,200,.2)}
+.profile-item-loc{font-weight:800;font-size:13.5px;margin-bottom:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.profile-item-preview{font-size:12.5px;color:var(--text-light)}
+.edit-btn{margin-left:auto;background:#f0f0f0;border:none;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:700;font-size:11.5px;padding:4px 11px;border-radius:10px;color:var(--text-light);transition:all .2s;flex-shrink:0}
+.edit-btn:hover{background:var(--teal);color:#fff}
+
+/* Contact */
+.contact-wrap{max-width:580px;margin:0 auto}
+.contact-card{background:#fff;border-radius:var(--radius);padding:40px;box-shadow:var(--shadow)}
+.contact-title{font-family:'Fredoka One',cursive;font-size:34px;color:#3a6ea8;letter-spacing:2px;margin-bottom:8px}
+
+/* ── MODALS ── */
+.modal-overlay{position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,.45);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal-card{background:#fff;border-radius:22px;width:510px;max-height:84vh;overflow-y:auto;box-shadow:0 22px 60px rgba(0,0,0,.3);transform:translateY(22px) scale(.95);transition:transform .35s cubic-bezier(.34,1.56,.64,1)}
+.modal-overlay.open .modal-card{transform:translateY(0) scale(1)}
+.modal-top{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1.5px solid #eee}
+.win-ctl-row{display:flex;gap:7px;align-items:center}
+.modal-body{padding:22px}
+.form-group{margin-bottom:18px}
+.form-label{display:block;font-weight:800;font-size:12px;color:var(--text-light);margin-bottom:7px;text-transform:uppercase;letter-spacing:.5px}
+.form-input,.form-textarea{width:100%;padding:12px 15px;border:2px solid #e0e0e0;border-radius:13px;font-family:'Nunito',sans-serif;font-size:14.5px;color:var(--text);transition:border-color .2s;outline:none}
+.form-input:focus,.form-textarea:focus{border-color:var(--teal)}
+.form-textarea{min-height:110px;resize:vertical}
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cat-opt{padding:11px 14px;border:2.5px solid #e0e0e0;border-radius:13px;cursor:pointer;display:flex;align-items:center;gap:9px;font-weight:700;font-size:13.5px;transition:all .2s}
+.cat-opt:hover{transform:scale(1.02)}
+.cat-opt.selected{color:#fff!important;border-color:transparent!important}
+.cat-dot-sm{width:13px;height:13px;border-radius:50%;flex-shrink:0}
+/* Upload area */
+.upload-area{border:2px dashed #ccc;border-radius:13px;padding:18px;background:#fafafa;cursor:pointer;transition:all .22s;text-align:center}
+.upload-area:hover{border-color:var(--teal);background:#f0fafc}
+.upload-icons-row{display:flex;justify-content:center;gap:10px;font-size:24px;margin-bottom:6px}
+.upload-hint{font-size:12.5px;color:var(--text-light);font-weight:700}
+.upload-previews{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.upload-preview-item{position:relative;border-radius:10px;overflow:hidden;height:80px;background:#eee}
+.upload-preview-item img,.upload-preview-item video{width:100%;height:100%;object-fit:cover}
+.remove-media-btn{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;cursor:pointer;width:20px;height:20px;border-radius:50%;font-size:11px;display:flex;align-items:center;justify-content:center}
+.submit-btn{width:100%;background:var(--teal);color:#fff;border:none;cursor:pointer;font-family:'Fredoka One',cursive;font-size:17px;letter-spacing:1px;padding:15px;border-radius:14px;transition:all .3s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;justify-content:center;gap:9px;margin-top:4px}
+.submit-btn:hover{transform:translateY(-2px);box-shadow:0 9px 26px rgba(69,184,200,.5)}
+
+/* Avatar modal */
+.avatar-modal-card{width:440px}
+.avatar-emoji-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px}
+.avatar-emoji-opt{font-size:28px;padding:8px;border-radius:12px;cursor:pointer;text-align:center;border:2.5px solid transparent;transition:all .2s}
+.avatar-emoji-opt:hover,.avatar-emoji-opt.selected-av{border-color:var(--teal);background:#f0fafc;transform:scale(1.1)}
+.avatar-upload-btn{display:flex;align-items:center;gap:10px;background:#f5faff;border:2px solid var(--teal);color:var(--teal);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;padding:12px 18px;border-radius:13px;width:100%;margin-bottom:10px;transition:all .22s}
+.avatar-upload-btn:hover{background:var(--teal);color:#fff}
+.avatar-remove-btn{display:flex;align-items:center;gap:10px;background:#fff5f5;border:2px solid #e84040;color:#e84040;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;padding:12px 18px;border-radius:13px;width:100%;transition:all .22s}
+.avatar-remove-btn:hover{background:#e84040;color:#fff}
+.avatar-preview-wrap{text-align:center;margin-bottom:16px}
+.avatar-preview-circle{width:80px;height:80px;border-radius:50%;margin:0 auto 8px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:38px;background:linear-gradient(135deg,#f5a623,#f07fa0)}
+.avatar-preview-circle img{width:100%;height:100%;object-fit:cover}
+.avatar-save-btn{width:100%;background:var(--teal);color:#fff;border:none;cursor:pointer;font-family:'Fredoka One',cursive;font-size:16px;letter-spacing:1px;padding:13px;border-radius:14px;margin-top:14px;transition:all .22s}
+.avatar-save-btn:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(69,184,200,.45)}
+
+/* Archive title */
+.archive-title{position:fixed;top:calc(var(--nav-h)+18px);left:50%;transform:translateX(-50%);z-index:300;font-family:'Fredoka One',cursive;font-size:34px;color:#4a6ea8;letter-spacing:3px;text-shadow:2px 2px 0 rgba(255,255,255,.75);pointer-events:none;opacity:0;transition:opacity .35s}
+.archive-title.show{opacity:1}
+
+/* Toast */
+.toast{position:fixed;bottom:96px;right:28px;z-index:2000;background:#27ae60;color:#fff;padding:13px 22px;border-radius:50px;font-weight:800;font-size:14.5px;box-shadow:0 8px 24px rgba(39,174,96,.4);transform:translateY(18px);opacity:0;transition:all .35s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:9px}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18);border-radius:3px}
+
+/* Animations */
+@keyframes pinDrop{0%{transform:translateY(-30px) scale(.5);opacity:0}65%{transform:translateY(5px) scale(1.12)}100%{transform:translateY(0) scale(1);opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.pin-drop-anim{animation:pinDrop .45s cubic-bezier(.34,1.56,.64,1) forwards}
+.fade-up{animation:fadeUp .3s ease forwards}
+.wave-svg{position:fixed;pointer-events:none;opacity:.35;z-index:50}
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav id="main-nav">
+  <div class="logo-wrap">
+    <span class="logo">MAPPIN' IT</span>
+    <span class="logo-sub">An Interactive Map of Migrant Domestic Worker spaces in Singapore</span>
+  </div>
+  <div class="nav-links">
+    <button class="nav-btn active" id="nav-home" onclick="navTo('home')">Home</button>
+    <button class="nav-btn" id="nav-about" onclick="navTo('about')">About</button>
+    <button class="nav-btn" id="nav-archive" onclick="navTo('archive')">Archive</button>
+    <button class="nav-btn" id="nav-contact" onclick="navTo('contact')">Contact Us</button>
+  </div>
+  <div class="nav-right">
+    <div class="user-profile-btn" onclick="navTo('profile')">
+      <div class="user-avatar-nav" id="nav-avatar-display">👩</div>
+      <span class="user-name">Sophia</span>
+      <div class="verified-badge">✓</div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── MAP ── -->
+<div id="map-container"><div id="map"></div></div>
+
+<!-- Waves -->
+<svg class="wave-svg" style="bottom:80px;left:30px;width:140px" viewBox="0 0 200 60" fill="none"><path d="M10 30 Q 35 10,60 30 Q 85 50,110 30 Q 135 10,160 30 Q 185 50,200 30" stroke="#4a90d9" stroke-width="5" stroke-linecap="round" fill="none"/></svg>
+<svg class="wave-svg" style="bottom:140px;right:200px;width:120px" viewBox="0 0 200 60" fill="none"><path d="M10 30 Q 35 10,60 30 Q 85 50,110 30 Q 135 10,160 30 Q 185 50,200 30" stroke="#4a90d9" stroke-width="5" stroke-linecap="round" fill="none"/></svg>
+<svg class="wave-svg" style="top:90px;right:40px;width:100px" viewBox="0 0 200 60" fill="none"><path d="M10 30 Q 35 10,60 30 Q 85 50,110 30 Q 135 10,160 30 Q 185 50,200 30" stroke="#4a90d9" stroke-width="5" stroke-linecap="round" fill="none"/></svg>
+
+<div class="archive-title" id="archive-title">MAPPIN' THE ARCHIVE</div>
+<div class="want-to-share" id="want-to-share">Want to share more about<br>MDW spaces in Singapore?</div>
+<button class="place-pin-btn" id="place-pin-btn" onclick="openPlacePinModal()"><span style="font-size:20px">📍</span> PLACE A PIN</button>
+
+<!-- ── CONTRIBUTION PANELS ── -->
+<div class="contrib-overlay" id="contrib-overlay">
+  <div class="contrib-list-panel" id="list-panel">
+    <div class="panel-header">
+      <div><div class="loc-title" id="panel-loc-name">Lucky Plaza</div></div>
+      <div style="display:flex;align-items:center;gap:11px">
+        <span class="cat-badge" id="panel-cat-badge" style="background:#e8638a">Shopping</span>
+        <button class="panel-close" onclick="closePanels()">×</button>
+      </div>
+    </div>
+    <div class="contrib-list" id="panel-contrib-list"></div>
+  </div>
+  <div class="contrib-detail-panel" id="detail-panel">
+    <div class="detail-win-bar">
+      <div class="win-dots">
+        <div class="win-dot" style="background:#ff5f57" onclick="closePanels()"></div>
+        <div class="win-dot" style="background:#febc2e" onclick="closeDetail()"></div>
+        <div class="win-dot" style="background:#28c840"></div>
+      </div>
+      <button class="detail-inner-btn" onclick="openPlacePinModal()">📍 PLACE A PIN</button>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
+  </div>
+</div>
+
+<!-- ── ABOUT PAGE ── -->
+<div class="page" id="page-about">
+  <div class="about-wrap">
+    <div class="about-hero"><div style="font-size:52px;margin-bottom:14px">📍</div><h1>ALL ABOUT MAPPIN' IT</h1></div>
+    <div class="about-card">
+      <p><strong>Mappin' It</strong> is a communally crowdsourced digital map of Singapore for <strong>Migrant Domestic Workers (MDWs)</strong> to share about the different places in Singapore they frequent and what it means to them.</p>
+      <p>MDWs, MDW organisations and non-MDW members of the public can "<strong>Place A Pin</strong>" on a specific location on the map. Under the pin, users can write a short note and/or upload photos and videos about the place to share more about their experience of that specific place.</p>
+      <p>This website started as a student-led initiative by a group of 4 students from the <strong>National University of Singapore's Tembusu College</strong>, under the course <strong>UTS2115 Migrant Workers, Rhetoric and Performance</strong>.</p>
+      <p>Our mission is to amplify the voices of MDWs in Singapore by creating a living, breathing archive of the spaces they call their own — places of joy, community, and belonging in a city far from home.</p>
+    </div>
+    <div class="about-cta">
+      <h3>Want to Place A Pin and share your story?</h3>
+      <p>View our Guidebook below and sign up now!</p>
+      <button class="guidebook-btn" onclick="navTo('guide')">📖 How to Use Mappin' It: A Friendly Guidebook</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── GUIDEBOOK PAGE ── -->
+<div class="page" id="page-guide">
+  <div class="guide-wrap">
+    <div class="guide-hero"><div style="font-size:52px;margin-bottom:12px">📖</div><h1>HOW TO USE MAPPIN' IT</h1><p style="color:var(--text-light);font-weight:700;font-size:15px;margin-top:8px">A friendly step-by-step guide to navigating our interactive map</p></div>
+
+    <div class="guide-section">
+      <h2>🗺️ Navigating the Map</h2>
+      <div class="guide-step"><div class="step-num">1</div><div class="step-text"><strong>Zoom in & out</strong> using your mouse scroll wheel, trackpad pinch, or the + / − buttons at the bottom-left of the map. The map is restricted to Singapore, so you'll always stay on the island.</div></div>
+      <div class="guide-step"><div class="step-num">2</div><div class="step-text"><strong>Pan and drag</strong> the map by clicking and dragging to explore different parts of Singapore — from Jurong to Changi, Orchard to Woodlands.</div></div>
+      <div class="guide-step"><div class="step-num">3</div><div class="step-text">At the <strong>overview level</strong>, you'll see three key locations labelled on the map: <strong>Lucky Plaza</strong>, <strong>Peninsula Plaza</strong>, and <strong>City Plaza</strong>. These are popular gathering spots for MDWs. Click their labels or pins to zoom in.</div></div>
+    </div>
+
+    <div class="guide-section">
+      <h2>📍 Understanding the Pins</h2>
+      <p style="font-size:14.5px;margin-bottom:14px;color:var(--text-light)">Different coloured pins represent different categories of experience. Here's what each colour means:</p>
+      <div class="cat-legend">
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#e84040"></div>🔴 General Location</div>
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#e6b800"></div>🟡 Food</div>
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#e8638a"></div>🩷 Shopping</div>
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#3daa52"></div>🟢 Social</div>
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#8e44ad"></div>🟣 Fun Activities</div>
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#357bd8"></div>🔵 Resources</div>
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#d4822a"></div>🟠 Organisation (Archive)</div>
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#aaa;border:2px solid #999"></div>⚪ Moderator Fact (Archive)</div>
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <h2>👁️ Viewing Contributions</h2>
+      <div class="guide-step"><div class="step-num">1</div><div class="step-text">Click on any <strong>coloured pin</strong> on the map to open the contributions panel on the left side of the screen. You'll see a list of posts from other users about that specific category and location.</div></div>
+      <div class="guide-step"><div class="step-num">2</div><div class="step-text">Click the <strong>› arrow</strong> next to any contribution to open its full detail — including photos, videos, and the full written story.</div></div>
+      <div class="guide-step"><div class="step-num">3</div><div class="step-text">Users with a <strong>🔵 blue tick</strong> are verified members. Users marked <strong>(Public)</strong> have contributed without a registered account.</div></div>
+    </div>
+
+    <div class="guide-section">
+      <h2>✏️ Placing a Pin</h2>
+      <div class="guide-step"><div class="step-num">1</div><div class="step-text"><strong>Zoom into</strong> the area of Singapore you'd like to pin.</div></div>
+      <div class="guide-step"><div class="step-num">2</div><div class="step-text"><strong>Click on the map</strong> at your chosen spot. A red pin will drop to mark your selected location.</div></div>
+      <div class="guide-step"><div class="step-num">3</div><div class="step-text">Click the <strong>"PLACE A PIN"</strong> button at the bottom-right corner of the screen.</div></div>
+      <div class="guide-step"><div class="step-num">4</div><div class="step-text">In the form that appears, <strong>choose a category</strong> for your pin (Food, Shopping, Social, Fun Activities, Resources, etc.).</div></div>
+      <div class="guide-step"><div class="step-num">5</div><div class="step-text"><strong>Upload photos or videos</strong> from your device to bring your contribution to life. Then add a title and write about your experience.</div></div>
+      <div class="guide-step"><div class="step-num">6</div><div class="step-text">Click <strong>"PLACE A PIN"</strong> to publish. Your pin will appear on the map and be clickable by everyone!</div></div>
+    </div>
+
+    <div class="guide-section">
+      <h2>🗃️ The Archive</h2>
+      <div class="guide-step"><div class="step-num">1</div><div class="step-text">Click <strong>Archive</strong> in the top navigation bar to switch to the archive view. Only orange and white pins are shown here.</div></div>
+      <div class="guide-step"><div class="step-num">2</div><div class="step-text"><strong>Orange pins</strong> are from verified MDW organisations (like HOME, HOME ROSES, and Kaugnay). They share information about past and current events, initiatives, and campaigns.</div></div>
+      <div class="guide-step"><div class="step-num">3</div><div class="step-text"><strong>White pins</strong> are moderator contributions — "Did You Know?" facts about MDW working conditions, rights, and life in Singapore.</div></div>
+    </div>
+
+    <div class="guide-section">
+      <h2>👤 Your Profile</h2>
+      <div class="guide-step"><div class="step-num">1</div><div class="step-text">Click your <strong>name in the top-right corner</strong> to visit your profile page. Here you can see all the pins you've contributed.</div></div>
+      <div class="guide-step"><div class="step-num">2</div><div class="step-text">Click the <strong>› arrow</strong> on any of your contributions to view its full details on the right side.</div></div>
+      <div class="guide-step"><div class="step-num">3</div><div class="step-text">Click the <strong>Edit</strong> button on any of your contributions to update the title, body text, or media (photos/videos).</div></div>
+      <div class="guide-step"><div class="step-num">4</div><div class="step-text">Click on your <strong>profile picture</strong> to open the avatar editor — choose an emoji avatar, upload a photo, or remove your picture entirely.</div></div>
+    </div>
+
+    <button class="guide-back-btn" onclick="navTo('about')">← Back to About</button>
+  </div>
+</div>
+
+<!-- ── PROFILE PAGE ── -->
+<div class="page" id="page-profile">
+  <div class="profile-wrap">
+    <div>
+      <div class="profile-card" style="margin-bottom:20px">
+        <div class="profile-hdr">
+          <div class="profile-avatar-lg" id="profile-avatar-display" onclick="openAvatarModal()">👩</div>
+          <div>
+            <div class="profile-name-lg">Sophia <div class="verified-badge" style="width:22px;height:22px;font-size:12px">✓</div></div>
+            <div class="profile-country">Home Country: The Philippines</div>
+            <div style="font-size:12px;color:var(--teal);font-weight:700;margin-top:6px;cursor:pointer" onclick="openAvatarModal()">✏️ Edit Avatar</div>
+          </div>
+        </div>
+      </div>
+      <div class="profile-card">
+        <div class="contribs-label">Past contributions:</div>
+        <div id="profile-list"></div>
+      </div>
+    </div>
+    <div>
+      <div class="profile-card" style="padding:0;overflow:hidden;min-height:400px">
+        <div class="detail-win-bar" style="padding:14px 18px">
+          <div class="win-dots">
+            <div class="win-dot" style="background:#ff5f57" onclick="navTo('home')"></div>
+            <div class="win-dot" style="background:#febc2e"></div>
+            <div class="win-dot" style="background:#28c840"></div>
+          </div>
+          <button class="detail-inner-btn" onclick="openPlacePinModal()">📍 PLACE A PIN</button>
+        </div>
+        <div style="padding:22px" id="profile-detail-body">
+          <div style="text-align:center;padding:50px 20px;color:#bbb"><div style="font-size:48px;margin-bottom:12px">👈</div><div style="font-weight:800;font-size:15px">Select a contribution to view details</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CONTACT PAGE ── -->
+<div class="page" id="page-contact">
+  <div class="contact-wrap">
+    <div class="contact-card">
+      <div class="contact-title">CONTACT US</div>
+      <p style="margin-bottom:24px;color:var(--text-light);font-weight:600;font-size:14.5px">Have questions, suggestions, or want to get involved? Reach out!</p>
+      <div class="form-group"><label class="form-label">Your Name</label><input class="form-input" type="text" placeholder="Enter your name"></div>
+      <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" type="email" placeholder="your@email.com"></div>
+      <div class="form-group"><label class="form-label">Message</label><textarea class="form-textarea" placeholder="Tell us what's on your mind…"></textarea></div>
+      <button class="submit-btn" onclick="showToast('Message sent! We\'ll be in touch soon 💙')">📨 Send Message</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PLACE A PIN / EDIT MODAL ── -->
+<div class="modal-overlay" id="pin-modal">
+  <div class="modal-card">
+    <div class="modal-top">
+      <div class="win-ctl-row">
+        <div class="win-dot" style="background:#ff5f57;cursor:pointer" onclick="closePinModal()"></div>
+        <div class="win-dot" style="background:#febc2e"></div>
+        <div class="win-dot" style="background:#28c840"></div>
+      </div>
+      <button class="detail-inner-btn" style="font-size:14px;padding:9px 18px" id="pin-modal-title-btn">📍 PLACE A PIN</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <div class="form-label">Subject / Location</div>
+        <div id="modal-location" style="font-weight:800;font-size:15.5px;color:var(--text);padding:10px 14px;background:#f5faff;border-radius:10px;border:2px solid #dde8f0">Click on the map to select a location</div>
+      </div>
+      <div class="form-group" id="cat-group">
+        <label class="form-label">Pin Category</label>
+        <div class="cat-grid" id="cat-grid"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Photos / Videos</label>
+        <div class="upload-area" onclick="document.getElementById('file-input').click()">
+          <div class="upload-icons-row">📷 🖼️ 🎥</div>
+          <div class="upload-hint">Click to upload photos or videos from your device</div>
+        </div>
+        <input type="file" id="file-input" multiple accept="image/*,video/*" style="display:none" onchange="handleFileUpload(event)">
+        <div class="upload-previews" id="upload-previews"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Post Title</label><input class="form-input" id="pin-title" type="text" placeholder="Give your pin a catchy title…"></div>
+      <div class="form-group"><label class="form-label">Write something</label><textarea class="form-textarea" id="pin-body" placeholder="Share what this place means to you…"></textarea></div>
+      <button class="submit-btn" id="pin-submit-btn" onclick="submitOrSavePin()">📍 PLACE A PIN</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── AVATAR MODAL ── -->
+<div class="modal-overlay" id="avatar-modal">
+  <div class="modal-card avatar-modal-card">
+    <div class="modal-top">
+      <div class="win-ctl-row">
+        <div class="win-dot" style="background:#ff5f57;cursor:pointer" onclick="closeAvatarModal()"></div>
+        <div class="win-dot" style="background:#febc2e"></div>
+        <div class="win-dot" style="background:#28c840"></div>
+      </div>
+      <span style="font-family:'Fredoka One',cursive;font-size:17px;color:var(--text)">Edit Avatar</span>
+    </div>
+    <div class="modal-body">
+      <div class="avatar-preview-wrap">
+        <div class="avatar-preview-circle" id="avatar-preview">👩</div>
+        <div style="font-size:13px;color:var(--text-light);font-weight:700">Preview</div>
+      </div>
+      <div class="form-label" style="margin-bottom:10px">Choose an emoji avatar</div>
+      <div class="avatar-emoji-grid" id="avatar-emoji-grid"></div>
+      <button class="avatar-upload-btn" onclick="document.getElementById('avatar-file-input').click()">📷 Upload a Profile Photo</button>
+      <input type="file" id="avatar-file-input" accept="image/*" style="display:none" onchange="previewAvatarUpload(event)">
+      <button class="avatar-remove-btn" onclick="setAvatarNone()">🗑️ Remove Avatar (use blank placeholder)</button>
+      <button class="avatar-save-btn" onclick="saveAvatar()">Save Avatar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">✅ <span id="toast-msg">Done!</span></div>
+
+<!-- ═══════════════════════════════════════
+     DEVELOPER NOTE — Adding real images to mock contributions:
+
+     To add real photos to existing contributions, find the contribution entry
+     in the CONTRIBS object below and add/update these fields:
+       mediaUrls: ["https://your-hosted-image.com/photo.jpg", ...]
+       mediaTypes: ["image", "image", ...]   (or "video" for videos)
+
+     You can also use base64 data URLs:
+       mediaUrls: ["data:image/jpeg;base64,/9j/4AAQ..."]
+
+     Or relative paths if hosting locally:
+       mediaUrls: ["./photos/lucky-thrifty-1.jpg", "./photos/lucky-thrifty-2.jpg"]
+
+     For videos:
+       mediaUrls: ["https://your-hosted-video.com/clip.mp4"]
+       mediaTypes: ["video"]
+
+     Only Sophia's contributions (isOwn: true) are editable via the Edit button.
+     Other users' contributions can only be updated here in the CONTRIBS data.
+═══════════════════════════════════════ -->
+<script>
+// ═══════════════════════════════════════════
+// CATEGORY DEFINITIONS
+// ═══════════════════════════════════════════
+const CAT = {
+  red:    {label:'General Location', color:'#e84040', emoji:'📍'},
+  yellow: {label:'Food',             color:'#e6b800', emoji:'🍜'},
+  pink:   {label:'Shopping',         color:'#e8638a', emoji:'🛍️'},
+  green:  {label:'Social',           color:'#3daa52', emoji:'👥'},
+  purple: {label:'Fun Activities',   color:'#8e44ad', emoji:'🎉'},
+  blue:   {label:'Resources',        color:'#357bd8', emoji:'📋'},
+  orange: {label:'Organisation',     color:'#d4822a', emoji:'🏢'},
+  white:  {label:'Moderator',        color:'#888',    emoji:'💡', bgColor:'#f4f4f4'},
+};
+
+// ═══════════════════════════════════════════
+// CONTRIBUTIONS DATA
+// (Add mediaUrls/mediaTypes arrays to inject real photos — see developer note above)
+// ═══════════════════════════════════════════
+const CONTRIBS = {
+  lucky_pink:[
+    {id:'lp1',title:'Lucky Thrifty!!!',user:'Sophia',flag:'🇵🇭',verified:true,isOwn:true,loc:'Lucky Plaza',cat:'pink',text:'Lucky Plaza has so many places to go shopping for cheap clothes! Many shops are owned by Filipinos who have been in Singapore for many years. I love shopping with them!',imgs:['🛍️','👗'],mediaUrls:[],mediaTypes:[]},
+    {id:'lp2',title:'I love shopping here',user:'Lisa',flag:'🇮🇩',verified:true,loc:'Lucky Plaza',cat:'pink',text:'The stores here have everything I need to send back home. Great prices and the shopkeepers are so friendly! I come every Sunday with my friends.',imgs:[],mediaUrls:[],mediaTypes:[]},
+    {id:'lp3',title:'Very stylish finds!',user:'Melissa',flag:'🌍',isPublic:true,verified:false,loc:'Lucky Plaza',cat:'pink',text:'Found the most amazing clothes here for half the price of Orchard malls! The quality is surprisingly good. Recommend the shops on level 3.',imgs:[],mediaUrls:[],mediaTypes:[]},
+    {id:'lp4',title:'Great bargain hunting',user:'James',flag:'🇬🇧',isPublic:true,verified:false,loc:'Lucky Plaza',cat:'pink',text:'Walked through Lucky Plaza with my helper and was amazed by the community here. Really vibrant atmosphere on a Sunday.',imgs:[],mediaUrls:[],mediaTypes:[]},
+  ],
+  lucky_yellow:[
+    {id:'lf1',title:'Taste of Home 🏠',user:'Maria',flag:'🇵🇭',verified:true,loc:'Lucky Plaza',cat:'yellow',text:'The Filipino food stalls here are amazing. Real home cooking — adobo, sinigang, kare-kare. Every Sunday I eat here before going back to work. It makes me feel less lonely.',imgs:['🍛','🍲'],mediaUrls:[],mediaTypes:[]},
+    {id:'lf2',title:'Best halo-halo!',user:'Ana',flag:'🇵🇭',verified:false,isPublic:true,loc:'Lucky Plaza',cat:'yellow',text:'They have the best halo-halo I\'ve tasted outside the Philippines. Perfectly sweet and cold on a hot Singapore day!',imgs:[],mediaUrls:[],mediaTypes:[]},
+  ],
+  lucky_green:[
+    {id:'ls1',title:'Sunday Meetups 🌟',user:'Grace',flag:'🇵🇭',verified:true,loc:'Lucky Plaza',cat:'green',text:'This is where all the Filipino MDWs meet up every Sunday. We sit outside, catch up, share stories from the week. It\'s like a mini Philippines right here in Orchard!',imgs:['👭','☀️'],mediaUrls:[],mediaTypes:[]},
+    {id:'ls2',title:'My second home',user:'Joy',flag:'🇵🇭',verified:false,loc:'Lucky Plaza',cat:'green',text:'I\'ve made some of my closest friends here. We celebrate birthdays, comfort each other, share news from home. Lucky Plaza is our community centre.',imgs:[],mediaUrls:[],mediaTypes:[]},
+    {id:'ls3',title:'A lovely afternoon',user:'Daniel',flag:'🇸🇬',isPublic:true,verified:false,loc:'Lucky Plaza',cat:'green',text:'I visited Lucky Plaza on a Sunday and was moved by the sense of community. Such a warm atmosphere. More Singaporeans should know about this place.',imgs:[],mediaUrls:[],mediaTypes:[]},
+  ],
+  lucky_purple:[
+    {id:'la1',title:'Karaoke at 3F! 🎤',user:'Joy',flag:'🇵🇭',verified:true,loc:'Lucky Plaza',cat:'purple',text:'There\'s a karaoke place on the 3rd floor! We go every Sunday and sing our hearts out. It\'s the best stress relief after a long week of work. Very affordable too!',imgs:['🎵','🎤'],mediaUrls:[],mediaTypes:[]},
+    {id:'la2',title:'Manicure & Spa',user:'Rosa',flag:'🇵🇭',verified:false,loc:'Lucky Plaza',cat:'purple',text:'Affordable nail salons run by Filipinos. We treat ourselves here on rest days. Good quality and very affordable compared to other parts of Singapore!',imgs:[],mediaUrls:[],mediaTypes:[]},
+  ],
+  lucky_blue:[
+    {id:'lb1',title:'Western Union Here',user:'Sophia',flag:'🇵🇭',verified:true,isOwn:true,loc:'Lucky Plaza',cat:'blue',text:'Easy to send money home from Lucky Plaza. Western Union is on level 2. The staff are helpful and speak Filipino. I send money to my family every month from here.',imgs:['💰','🏦'],mediaUrls:[],mediaTypes:[]},
+    {id:'lb2',title:'Helpful SIM store',user:'Nena',flag:'🇵🇭',verified:false,loc:'Lucky Plaza',cat:'blue',text:'There\'s a small store that helps us get SIM cards and set up data plans. Very patient with explaining the plans in Filipino.',imgs:[],mediaUrls:[],mediaTypes:[]},
+  ],
+  peni_pink:[
+    {id:'pp1',title:'Myanmar Fashion Find',user:'Aye',flag:'🇲🇲',verified:true,loc:'Peninsula Plaza',cat:'pink',text:'You can find beautiful Myanmar traditional clothes and accessories here! Long yis, thanaka, and other things from home. It makes me feel connected to my culture.',imgs:['👘','🎀'],mediaUrls:[],mediaTypes:[]},
+    {id:'pp2',title:'Affordable everyday wear',user:'Khin',flag:'🇲🇲',verified:false,loc:'Peninsula Plaza',cat:'pink',text:'Very affordable clothes and shoes here. Much cheaper than other malls. I buy gifts to bring home when I visit during the holidays.',imgs:[],mediaUrls:[],mediaTypes:[]},
+    {id:'pp3',title:'Weekend window shopping',user:'Sarah',flag:'🇸🇬',isPublic:true,verified:false,loc:'Peninsula Plaza',cat:'pink',text:'Came here out of curiosity and discovered a whole wonderful community! The clothes and accessories are so unique.',imgs:[],mediaUrls:[],mediaTypes:[]},
+  ],
+  peni_yellow:[
+    {id:'pf1',title:'Myanmar Food Heaven 🍜',user:'Su',flag:'🇲🇲',verified:true,loc:'Peninsula Plaza',cat:'yellow',text:'The best Mohinga soup in Singapore is here at Peninsula Plaza! Rich, fragrant, just like in Yangon. I come here every Sunday to eat before meeting friends.',imgs:['🍜','🥣'],mediaUrls:[],mediaTypes:[]},
+    {id:'pf2',title:'Burmese tea shop!',user:'Win',flag:'🇲🇲',verified:false,isPublic:true,loc:'Peninsula Plaza',cat:'yellow',text:'There is a wonderful Burmese tea shop inside. Laphet thoke (tea leaf salad) that tastes exactly like home. Cannot believe I found it here in Singapore!',imgs:[],mediaUrls:[],mediaTypes:[]},
+  ],
+  peni_green:[
+    {id:'pgs1',title:'Myanmar Community Hub',user:'Nann',flag:'🇲🇲',verified:true,loc:'Peninsula Plaza',cat:'green',text:'The whole Myanmar MDW community gathers here on Sundays. You can hear people speaking Burmese everywhere. We share news, look out for each other. Feels just like home.',imgs:['👥','🌸'],mediaUrls:[],mediaTypes:[]},
+  ],
+  peni_purple:[
+    {id:'pa1',title:'Cultural Dance Events',user:'Zin',flag:'🇲🇲',verified:false,loc:'Peninsula Plaza',cat:'purple',text:'They organize cultural events here sometimes — traditional dances, music performances. So beautiful and it reminds me of home. Check the noticeboards for upcoming events!',imgs:['💃','🎶'],mediaUrls:[],mediaTypes:[]},
+  ],
+  peni_blue:[
+    {id:'pb1',title:'Remittance & More',user:'May',flag:'🇲🇲',verified:true,loc:'Peninsula Plaza',cat:'blue',text:'Multiple remittance services available on different floors. Very convenient for sending money to Myanmar. Some staff speak Burmese which helps a lot.',imgs:['🏦','📱'],mediaUrls:[],mediaTypes:[]},
+  ],
+  city_green:[
+    {id:'cg1',title:'Indonesian Hub! 🇮🇩',user:'Dewi',flag:'🇮🇩',verified:true,loc:'City Plaza',cat:'green',text:'City Plaza is our favourite place to meet! Always busy with Indonesian domestic workers especially on Sundays. You can hear Bahasa Indonesia everywhere you walk.',imgs:['👭','🎊'],mediaUrls:[],mediaTypes:[]},
+    {id:'cg2',title:'Weekend vibes',user:'Sri',flag:'🇮🇩',verified:false,loc:'City Plaza',cat:'green',text:'The atmosphere on Sundays is so lively! Music, laughter, friends catching up. This is where I feel most at home in Singapore.',imgs:[],mediaUrls:[],mediaTypes:[]},
+    {id:'cg3',title:'First time visit',user:'Tom',flag:'🇦🇺',isPublic:true,verified:false,loc:'City Plaza',cat:'green',text:'Stumbled upon this on a Sunday walk from Geylang. The energy was incredible — I had no idea such a vibrant community gathering existed right here.',imgs:[],mediaUrls:[],mediaTypes:[]},
+  ],
+  city_yellow:[
+    {id:'cf1',title:'Indonesian Street Food 🍛',user:'Siti',flag:'🇮🇩',verified:false,loc:'City Plaza',cat:'yellow',text:'Try the rendang and nasi padang here! Tastes just like back home in Padang. The portions are generous and the prices are very reasonable for Singapore.',imgs:['🍛','🥘'],mediaUrls:[],mediaTypes:[]},
+  ],
+  city_pink:[
+    {id:'csp1',title:'Affordable Fashion',user:'Putri',flag:'🇮🇩',verified:false,loc:'City Plaza',cat:'pink',text:'Great place for affordable clothing and accessories. Better selection and prices than Orchard Road malls. I love shopping for batik prints here!',imgs:['👗','🛍️'],mediaUrls:[],mediaTypes:[]},
+  ],
+  city_purple:[
+    {id:'cpa1',title:'Weekend Bazaar 🎪',user:'Indah',flag:'🇮🇩',verified:false,loc:'City Plaza',cat:'purple',text:'Sometimes there are Indonesian bazaars on weekends with food, crafts, and performances! So much fun. Check the announcements outside the mall.',imgs:['🎪','🎉'],mediaUrls:[],mediaTypes:[]},
+  ],
+  city_blue:[
+    {id:'cb1',title:'KBRI Services',user:'Ratna',flag:'🇮🇩',verified:true,loc:'City Plaza',cat:'blue',text:'Indonesian Embassy (KBRI) services are accessible nearby. Very helpful for document renewal, passport, and other official needs. Ask the staff for directions.',imgs:['📋','🏛️'],mediaUrls:[],mediaTypes:[]},
+  ],
+  home_org:[
+    {id:'ho1',title:'24 HOURS Rest Day Petition',user:'HOME',flag:'🏢',verified:true,loc:'HOME Headquarters',cat:'orange',date:'January 2026',text:'24 HOURS Rest Day Petition is an initiative by HOME to champion for MDWs to have a full uninterrupted 24 hours of rest every week. Currently, MDWs can forfeit rest days in exchange for monetary compensation — we believe every worker deserves genuine rest. The petition has been submitted to the Ministry of Manpower. Please sign and share!',imgs:['✊','📋'],mediaUrls:[],mediaTypes:[]},
+    {id:'ho2',title:'Workers Support Program',user:'HOME',flag:'🏢',verified:true,loc:'HOME Headquarters',cat:'orange',date:'November 2025',text:'HOME\'s Workers Support Program provides legal, social, and emotional support to MDWs in distress. In 2025 we assisted over 800 workers with shelter, counselling, and legal advice. Reach out to us if you or someone you know needs help.',imgs:['🤝','💙'],mediaUrls:[],mediaTypes:[]},
+  ],
+  roses_org:[
+    {id:'ro1',title:'ROSES Support Initiative',user:'HOME ROSES',flag:'🌹',verified:true,loc:'HOME ROSES Centre',cat:'orange',date:'December 2025',text:'HOME ROSES is a peer support group for women migrant workers in Singapore. We run weekly drop-in sessions, wellness workshops, and a buddy programme that pairs new MDWs with experienced ones. Join us — you are not alone!',imgs:['🌹','👩‍❤️‍👩'],mediaUrls:[],mediaTypes:[]},
+  ],
+  kaugnay_org:[
+    {id:'ka1',title:'Kaugnay Community Gathering',user:'Kaugnay',flag:'🇵🇭',verified:true,loc:'Kaugnay Centre',cat:'orange',date:'July 2024',text:'Kaugnay (meaning "connected" in Filipino) hosts regular community events for Filipino MDWs in Singapore. Our July 2024 gathering brought together over 200 workers for food, performances, and important information about workers\' rights.',imgs:['🎭','🤝'],mediaUrls:[],mediaTypes:[]},
+  ],
+  mom_white:[
+    {id:'mw1',title:'FYI: Rest Day Rights 💡',user:'Moderator',flag:'🏛️',verified:true,loc:'Ministry of Manpower HQ',cat:'white',text:'MDWs in Singapore are mandated to have at least one rest day per week. Employer and employee can mutually agree to have the MDW forfeit each day off in exchange for monetary compensation, except for one day a month where it is compulsory to give the MDW the day off.',imgs:['💡','📜'],mediaUrls:[],mediaTypes:[]},
+  ],
+  sgh_white:[
+    {id:'sw1',title:'FYI: Medical Entitlements 🏥',user:'Moderator',flag:'🏛️',verified:true,loc:'Singapore General Hospital',cat:'white',text:'Employers are required by law to purchase medical insurance covering at least $60,000 per year for their MDW, and to pay for the MDW\'s medical expenses. MDWs are entitled to see a doctor whenever they are unwell.',imgs:['🏥','💊'],mediaUrls:[],mediaTypes:[]},
+  ],
+  tp_white:[
+    {id:'tw1',title:'FYI: MDW Numbers in SG 📊',user:'Moderator',flag:'🏛️',verified:true,loc:'Toa Payoh Hub',cat:'white',text:'As of 2024, there are approximately 267,000 Migrant Domestic Workers in Singapore. MDWs come primarily from the Philippines, Indonesia, and Myanmar, and contribute enormously to Singapore households and the broader economy.',imgs:['📊','🌏'],mediaUrls:[],mediaTypes:[]},
+  ],
+};
+
+// Sophia's profile contributions
+const PROFILE_CONTRIBS = [
+  {locName:'Lucky Plaza',  catColor:'#e8638a', catLabel:'Shopping',  title:'Lucky Thrifty!!!', contribKey:'lucky_pink',  contribId:'lp1'},
+  {locName:'Lucky Plaza',  catColor:'#357bd8', catLabel:'Resources', title:'Western Union Here', contribKey:'lucky_blue',  contribId:'lb1'},
+];
+
+// ═══════════════════════════════════════════
+// MAP SETUP
+// ═══════════════════════════════════════════
+const SG_BOUNDS = [[1.1496, 103.5940],[1.4784, 104.0945]];
+const PRESET_LOCS = [
+  {id:'lucky', name:'Lucky Plaza',     lat:1.3010, lng:103.8370, letter:'c',
+   cats:[{cat:'yellow',lat:1.3020,lng:103.8362},{cat:'pink',lat:1.3017,lng:103.8380},{cat:'green',lat:1.3002,lng:103.8378},{cat:'purple',lat:1.3000,lng:103.8360},{cat:'blue',lat:1.3021,lng:103.8354}]},
+  {id:'peni',  name:'Peninsula Plaza', lat:1.2929, lng:103.8519, letter:'a',
+   cats:[{cat:'yellow',lat:1.2939,lng:103.8511},{cat:'pink',lat:1.2936,lng:103.8529},{cat:'green',lat:1.2920,lng:103.8527},{cat:'purple',lat:1.2918,lng:103.8509},{cat:'blue',lat:1.2940,lng:103.8503}]},
+  {id:'city',  name:'City Plaza',      lat:1.3189, lng:103.8886, letter:'b',
+   cats:[{cat:'yellow',lat:1.3199,lng:103.8878},{cat:'pink',lat:1.3196,lng:103.8896},{cat:'green',lat:1.3180,lng:103.8894},{cat:'purple',lat:1.3178,lng:103.8876},{cat:'blue',lat:1.3200,lng:103.8870}]},
+];
+const ARCHIVE_LOCS = [
+  {id:'home_org', name:'HOME',          lat:1.3015,lng:103.7890,type:'orange',contribKey:'home_org'},
+  {id:'roses',    name:'HOME ROSES',    lat:1.2795,lng:103.8205,type:'orange',contribKey:'roses_org'},
+  {id:'kaugnay',  name:'Kaugnay',       lat:1.3320,lng:103.8700,type:'orange',contribKey:'kaugnay_org'},
+  {id:'mom',      name:'Min. of Manpower HQ',lat:1.3215,lng:103.8254,type:'white',contribKey:'mom_white'},
+  {id:'sgh',      name:'Singapore General Hospital',lat:1.2790,lng:103.8340,type:'white',contribKey:'sgh_white'},
+  {id:'tp',       name:'Toa Payoh Hub', lat:1.3343,lng:103.8478,type:'white',contribKey:'tp_white'},
+];
+
+let map, userLayer, archiveLayer, tempPinMarker;
+let currentMode = 'home';
+let activePinName = '';
+let activePinLatlng = null;
+let selectedCat = null;
+let uploadedMedia = [];
+let editingContribId = null;
+let editingContribKey = null;
+let userAvatar = {type:'emoji', value:'👩'};
+let pendingAvatar = null;
+let toastTimer;
+
+function makePin(color, size=26, bColor='rgba(255,255,255,.85)') {
+  return L.divIcon({
+    className:'',
+    html:`<div class="map-pin-wrap"><div class="pin-head" style="width:${size}px;height:${size}px;background:${color};border-color:${bColor}"></div><div class="pin-stem" style="height:${Math.round(size*0.3)}px"></div></div>`,
+    iconSize:[size, size+Math.round(size*0.4)],
+    iconAnchor:[size/2, size+Math.round(size*0.4)],
+    popupAnchor:[0, -(size+Math.round(size*0.4))],
+  });
+}
+function makeWhitePin(size=24) {
+  return L.divIcon({
+    className:'',
+    html:`<div class="map-pin-wrap"><div class="pin-head" style="width:${size}px;height:${size}px;background:#f4f4f4;border:2.5px solid #999"></div><div class="pin-stem" style="height:8px;background:rgba(0,0,0,.18)"></div></div>`,
+    iconSize:[size, size+10], iconAnchor:[size/2, size+10],
+  });
+}
+
+window.addEventListener('load', () => {
+  map = L.map('map', {
+    center:[1.3521,103.8198], zoom:12,
+    zoomControl:false,
+    maxBounds:SG_BOUNDS, maxBoundsViscosity:1.0,
+    minZoom:10, maxZoom:19,
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+    attribution:'© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19,
+  }).addTo(map);
+  L.control.zoom({position:'bottomleft'}).addTo(map);
+
+  userLayer    = L.layerGroup().addTo(map);
+  archiveLayer = L.layerGroup().addTo(map);
+
+  // Fit to Singapore then lock minZoom
+  map.fitBounds(SG_BOUNDS, {padding:[20,20]});
+  setTimeout(()=>map.setMinZoom(map.getZoom()), 300);
+
+  addPresetPins();
+  addArchivePins();
+  map.on('click', onMapClick);
+});
+
+// ═══════════════════════════════════════════
+// PIN CREATION
+// ═══════════════════════════════════════════
+function addPresetPins() {
+  const labelDirs = {peni:'right', city:'right', lucky:'left'};
+  PRESET_LOCS.forEach(loc => {
+    // Large red main pin
+    const m = L.marker([loc.lat, loc.lng], {icon:makePin('#e84040', 34), zIndexOffset:300}).addTo(userLayer);
+    // Permanent teal label tooltip
+    m.bindTooltip(
+      `<div class="label-inner"><div class="label-letter">${loc.letter}</div>${loc.name}</div>`,
+      {permanent:true, direction:labelDirs[loc.id]||'right', className:'perm-loc-label', offset:[18,-14]}
+    );
+    m.on('click', (e)=>{
+      L.DomEvent.stopPropagation(e);
+      setCurrentLocation(loc.name, L.latLng(loc.lat, loc.lng));
+      map.flyTo([loc.lat, loc.lng], 17, {animate:true, duration:1.2});
+    });
+    // Category pins
+    loc.cats.forEach(cp=>{
+      const ci = CAT[cp.cat];
+      const cm = L.marker([cp.lat, cp.lng], {icon:makePin(ci.color, 22), zIndexOffset:100}).addTo(userLayer);
+      cm.on('click', (e)=>{
+        L.DomEvent.stopPropagation(e);
+        setCurrentLocation(loc.name, L.latLng(cp.lat, cp.lng));
+        openContribPanel(loc.name, cp.cat, loc.id+'_'+cp.cat);
+      });
+    });
+  });
+}
+
+function addArchivePins() {
+  ARCHIVE_LOCS.forEach(al=>{
+    const icon = al.type==='white' ? makeWhitePin(24) : makePin(CAT.orange.color, 24);
+    const m = L.marker([al.lat, al.lng], {icon, zIndexOffset:150}).addTo(archiveLayer);
+    m.on('click', (e)=>{
+      L.DomEvent.stopPropagation(e);
+      setCurrentLocation(al.name, L.latLng(al.lat, al.lng));
+      openArchivePanel(al);
+    });
+  });
+}
+
+function addPersistentUserPin(latlng, catKey, contribs, contribKey) {
+  const ci = CAT[catKey];
+  const icon = catKey==='white' ? makeWhitePin(24) : makePin(ci.color, 24);
+  const m = L.marker([latlng.lat, latlng.lng], {icon, zIndexOffset:400}).addTo(currentMode==='archive'?archiveLayer:userLayer);
+  m.on('click', (e)=>{
+    L.DomEvent.stopPropagation(e);
+    const locName = contribs[0]?.loc || activePinName;
+    openContribPanel(locName, catKey, contribKey);
+  });
+}
+
+// ═══════════════════════════════════════════
+// MAP CLICK → TEMP PIN
+// ═══════════════════════════════════════════
+function onMapClick(e) {
+  if (tempPinMarker) map.removeLayer(tempPinMarker);
+  activePinLatlng = e.latlng;
+  const name = findNearestLocName(e.latlng);
+  activePinName = name || `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+  document.getElementById('modal-location').textContent = activePinName;
+
+  tempPinMarker = L.marker(e.latlng, {
+    icon: L.divIcon({className:'',
+      html:`<div class="map-pin-wrap pin-drop-anim"><div class="pin-head" style="width:30px;height:30px;background:#e84040;border-color:rgba(255,255,255,.9)"></div><div class="pin-stem" style="height:10px"></div></div>`,
+      iconSize:[30,42], iconAnchor:[15,42],
+    }), zIndexOffset:1000,
+  }).addTo(currentMode==='archive' ? archiveLayer : userLayer);
+
+  document.getElementById('place-pin-btn').classList.add('pulsing');
+}
+
+function setCurrentLocation(name, latlng) {
+  activePinName = name;
+  activePinLatlng = latlng;
+  document.getElementById('modal-location').textContent = name;
+}
+
+function findNearestLocName(latlng) {
+  const all = [...PRESET_LOCS.map(l=>({name:l.name,lat:l.lat,lng:l.lng})), ...ARCHIVE_LOCS.map(l=>({name:l.name,lat:l.lat,lng:l.lng}))];
+  let best=null, min=Infinity;
+  all.forEach(l=>{const d=Math.hypot(l.lat-latlng.lat,l.lng-latlng.lng);if(d<min){min=d;best=l.name;}});
+  return min<0.012 ? best : null;
+}
+
+// ═══════════════════════════════════════════
+// CONTRIBUTION PANELS
+// ═══════════════════════════════════════════
+function userHtml(c) {
+  const pub = c.isPublic ? '<span class="public-tag">(Public)</span>' : '';
+  const tick = c.verified ? '<div class="verified-badge" style="width:14px;height:14px;font-size:8px">✓</div>' : '';
+  return `<span class="contrib-user-name">${c.user}</span>${pub}${tick}`;
+}
+
+function openContribPanel(locName, catKey, contribKey) {
+  const ci = CAT[catKey];
+  const contribs = CONTRIBS[contribKey] || [];
+  document.getElementById('panel-loc-name').textContent = locName;
+  const badge = document.getElementById('panel-cat-badge');
+  badge.textContent = ci.label; badge.style.background = ci.color;
+  const list = document.getElementById('panel-contrib-list');
+  list.innerHTML = '';
+  contribs.forEach((c,i)=>{
+    const el = document.createElement('div');
+    el.className='contrib-item fade-up'; el.style.animationDelay=(i*.07)+'s';
+    el.innerHTML=`
+      <div class="contrib-avatar-sm" style="background:linear-gradient(135deg,${ci.color}88,${ci.color}33);font-size:18px">${c.flag}</div>
+      <div class="contrib-info">
+        <div class="contrib-user-row">${userHtml(c)}</div>
+        <div class="contrib-preview">${c.title}</div>
+      </div><div class="arrow-icon">›</div>`;
+    el.onclick=()=>{document.querySelectorAll('.contrib-item').forEach(x=>x.classList.remove('active'));el.classList.add('active');openDetail(c,ci.color,contribKey);};
+    list.appendChild(el);
+  });
+  document.getElementById('list-panel').classList.add('open');
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+function openArchivePanel(al) {
+  const contribs = CONTRIBS[al.contribKey]||[];
+  const ci = al.type==='orange' ? CAT.orange : CAT.white;
+  document.getElementById('panel-loc-name').textContent = al.name;
+  const badge = document.getElementById('panel-cat-badge');
+  badge.textContent=ci.label; badge.style.background=al.type==='orange'?CAT.orange.color:'#888';
+  const list = document.getElementById('panel-contrib-list');
+  list.innerHTML='';
+  contribs.forEach((c,i)=>{
+    const el=document.createElement('div');
+    el.className='contrib-item fade-up'; el.style.animationDelay=(i*.08)+'s';
+    el.innerHTML=`
+      <div class="contrib-avatar-sm" style="background:${al.type==='orange'?'linear-gradient(135deg,#e8963a,#f5c842)':'#eee'};font-size:18px">${c.flag}</div>
+      <div class="contrib-info">
+        <div class="contrib-user-row">${userHtml(c)}${c.date?`<span style="font-size:11px;color:var(--text-light)">${c.date}</span>`:''}</div>
+        <div class="contrib-preview">${c.title}</div>
+      </div><div class="arrow-icon">›</div>`;
+    el.onclick=()=>{document.querySelectorAll('.contrib-item').forEach(x=>x.classList.remove('active'));el.classList.add('active');openDetail(c,al.type==='orange'?CAT.orange.color:'#888',al.contribKey);};
+    list.appendChild(el);
+  });
+  document.getElementById('list-panel').classList.add('open');
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+function openDetail(c, color, contribKey) {
+  const body = document.getElementById('detail-body');
+  const isFyi = c.cat==='white';
+  const isEditable = !!c.isOwn;
+  // Media
+  let mediaHtml = '';
+  const hasReal = c.mediaUrls && c.mediaUrls.length>0;
+  const hasEmoji = c.imgs && c.imgs.length>0;
+  if (hasReal) {
+    const cols = c.mediaUrls.length>1?'1fr 1fr':'1fr';
+    mediaHtml=`<div class="detail-media-grid has-media" style="grid-template-columns:${cols}">${c.mediaUrls.map((url,i)=>c.mediaTypes[i]==='video'?`<video src="${url}" controls class="detail-media-video"></video>`:`<img src="${url}" class="detail-media-img" onerror="this.parentElement.innerHTML='<div style=padding:20px;text-align:center;color:#aaa>📷</div>'">`).join('')}</div>`;
+  } else if (hasEmoji) {
+    const cols = c.imgs.length>1?'1fr 1fr':'1fr';
+    mediaHtml=`<div class="detail-media-grid has-media" style="grid-template-columns:${cols}">${c.imgs.map(em=>`<div class="emoji-placeholder" style="background:linear-gradient(135deg,${color}22,${color}44)">${em}<span style="font-size:11px;color:${color};font-weight:700">Photo</span></div>`).join('')}</div>`;
+  } else {
+    mediaHtml=`<div class="detail-media-grid"><div style="text-align:center;color:#ccc;font-size:13px">📷 No photos attached</div></div>`;
+  }
+  const pub = c.isPublic ? '<span class="public-tag" style="margin-left:6px">(Public)</span>' : '';
+  const tick = c.verified ? '<div class="verified-badge" style="width:16px;height:16px;font-size:9px">✓</div>' : '';
+  body.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div class="contrib-avatar-sm" style="width:44px;height:44px;font-size:22px;background:linear-gradient(135deg,${color}88,${color}33)">${c.flag}</div>
+      <div><div style="font-weight:800;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">${c.user}${pub}${tick}</div>${c.date?`<div style="font-size:12px;color:var(--text-light);font-weight:600">${c.date}</div>`:''}</div>
+    </div>
+    <div class="detail-title">${c.title}</div>
+    <div class="detail-loc">📍 ${c.loc}</div>
+    ${isFyi?'<div class="fyi-tag">💡 FYI: Did you know…</div>':''}
+    ${mediaHtml}
+    <div class="detail-text">${c.text}</div>
+    ${isEditable?`<button class="detail-edit-btn" onclick="openEditModal('${c.id}','${contribKey}')">✏️ Edit this contribution</button>`:''}`;
+  body.classList.add('fade-up'); setTimeout(()=>body.classList.remove('fade-up'),400);
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() { document.getElementById('detail-panel').classList.remove('open'); }
+function closePanels() {
+  document.getElementById('list-panel').classList.remove('open');
+  document.getElementById('detail-panel').classList.remove('open');
+  document.querySelectorAll('.contrib-item').forEach(x=>x.classList.remove('active'));
+}
+
+// ═══════════════════════════════════════════
+// PLACE A PIN MODAL
+// ═══════════════════════════════════════════
+const ALL_CATS = ['red','yellow','pink','green','purple','blue','orange','white'];
+
+function buildCatGrid() {
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML='';
+  ALL_CATS.forEach(key=>{
+    const ci=CAT[key]; const el=document.createElement('div');
+    el.className='cat-opt'; el.dataset.cat=key;
+    el.style.color = key==='white'?'#555':ci.color;
+    el.innerHTML=`<div class="cat-dot-sm" style="background:${key==='white'?'#ccc':ci.color}"></div>${ci.emoji} ${ci.label}`;
+    el.onclick=()=>selectCat(key,ci.color,el);
+    grid.appendChild(el);
+  });
+}
+
+function selectCat(key, color, el) {
+  document.querySelectorAll('.cat-opt').forEach(o=>{
+    o.classList.remove('selected'); o.style.background=''; o.style.color=CAT[o.dataset.cat].color==='#888'?'#555':CAT[o.dataset.cat].color;
+  });
+  el.classList.add('selected'); el.style.background=color; el.style.color='#fff'; selectedCat=key;
+}
+
+function handleFileUpload(event) {
+  const newFiles = Array.from(event.target.files);
+  newFiles.forEach(f=>{
+    uploadedMedia.push({url:URL.createObjectURL(f), type:f.type.startsWith('video')?'video':'image', name:f.name});
+  });
+  renderUploadPreviews();
+  event.target.value='';
+}
+
+function renderUploadPreviews() {
+  const wrap = document.getElementById('upload-previews');
+  wrap.innerHTML='';
+  uploadedMedia.forEach((m,i)=>{
+    const div=document.createElement('div'); div.className='upload-preview-item';
+    if(m.type==='video') div.innerHTML=`<video src="${m.url}" style="width:100%;height:100%;object-fit:cover"></video>`;
+    else div.innerHTML=`<img src="${m.url}" style="width:100%;height:100%;object-fit:cover">`;
+    const btn=document.createElement('button'); btn.className='remove-media-btn'; btn.textContent='×';
+    btn.onclick=(e)=>{e.stopPropagation();uploadedMedia.splice(i,1);renderUploadPreviews();};
+    div.appendChild(btn); wrap.appendChild(div);
+  });
+}
+
+function openPlacePinModal() {
+  editingContribId=null; editingContribKey=null; uploadedMedia=[];
+  buildCatGrid(); selectedCat=null;
+  document.getElementById('pin-title').value='';
+  document.getElementById('pin-body').value='';
+  document.getElementById('upload-previews').innerHTML='';
+  document.getElementById('pin-modal-title-btn').textContent='📍 PLACE A PIN';
+  document.getElementById('pin-submit-btn').textContent='📍 PLACE A PIN';
+  document.getElementById('cat-group').style.display='';
+  if(activePinName) document.getElementById('modal-location').textContent=activePinName;
+  document.getElementById('pin-modal').classList.add('open');
+}
+
+function openEditModal(contribId, contribKey) {
+  let c=null;
+  (CONTRIBS[contribKey]||[]).forEach(x=>{if(x.id===contribId)c=x;});
+  if(!c)return;
+  editingContribId=contribId; editingContribKey=contribKey;
+  uploadedMedia=(c.mediaUrls||[]).map((url,i)=>({url,type:(c.mediaTypes||[])[i]||'image',name:'existing'}));
+  buildCatGrid();
+  // Pre-select category
+  const catEl=document.querySelector(`.cat-opt[data-cat="${c.cat}"]`);
+  if(catEl) selectCat(c.cat, CAT[c.cat].color, catEl);
+  document.getElementById('pin-title').value=c.title||'';
+  document.getElementById('pin-body').value=c.text||'';
+  document.getElementById('modal-location').textContent=c.loc||activePinName;
+  renderUploadPreviews();
+  document.getElementById('pin-modal-title-btn').textContent='✏️ EDIT CONTRIBUTION';
+  document.getElementById('pin-submit-btn').textContent='💾 Save Changes';
+  document.getElementById('cat-group').style.display='none';
+  document.getElementById('pin-modal').classList.add('open');
+}
+
+function submitOrSavePin() {
+  if(editingContribId) { saveEdit(); return; }
+  const title=document.getElementById('pin-title').value.trim();
+  const body=document.getElementById('pin-body').value.trim();
+  if(!title){showToast('⚠️ Please add a title!');document.getElementById('pin-title').focus();return;}
+  if(!selectedCat){showToast('⚠️ Please choose a category!');return;}
+  const locName = activePinName || 'New Location';
+  const newId='user_'+Date.now();
+  const newContrib={id:newId,title,user:'Sophia',flag:'🇵🇭',verified:true,isOwn:true,isPublic:false,loc:locName,cat:selectedCat,text:body||'',imgs:[],mediaUrls:uploadedMedia.map(m=>m.url),mediaTypes:uploadedMedia.map(m=>m.type)};
+  // Derive key
+  const presetMatch=PRESET_LOCS.find(l=>l.name===locName);
+  const contribKey=(presetMatch?presetMatch.id:'custom')+'_'+selectedCat;
+  if(!CONTRIBS[contribKey])CONTRIBS[contribKey]=[];
+  CONTRIBS[contribKey].push(newContrib);
+  // Add to profile
+  PROFILE_CONTRIBS.push({locName, catColor:CAT[selectedCat].color, catLabel:CAT[selectedCat].label, title, contribKey, contribId:newId});
+  // Persist pin on map
+  if(activePinLatlng){
+    if(tempPinMarker){map.removeLayer(tempPinMarker);tempPinMarker=null;}
+    addPersistentUserPin(activePinLatlng, selectedCat, CONTRIBS[contribKey], contribKey);
+  }
+  document.getElementById('place-pin-btn').classList.remove('pulsing');
+  closePinModal();
+  showToast('📍 Pin placed! Click it anytime to see your contribution.');
+}
+
+function saveEdit() {
+  const title=document.getElementById('pin-title').value.trim();
+  const body=document.getElementById('pin-body').value.trim();
+  if(!title){showToast('⚠️ Title cannot be empty!');return;}
+  const arr=CONTRIBS[editingContribKey]||[];
+  const idx=arr.findIndex(c=>c.id===editingContribId);
+  if(idx!==-1){
+    arr[idx].title=title; arr[idx].text=body;
+    arr[idx].mediaUrls=uploadedMedia.map(m=>m.url);
+    arr[idx].mediaTypes=uploadedMedia.map(m=>m.type);
+  }
+  // Update profile list
+  const pi=PROFILE_CONTRIBS.findIndex(p=>p.contribId===editingContribId);
+  if(pi!==-1) PROFILE_CONTRIBS[pi].title=title;
+  closePinModal();
+  showToast('✅ Contribution updated!');
+  if(document.getElementById('page-profile').classList.contains('active')) buildProfile();
+}
+
+function closePinModal() { document.getElementById('pin-modal').classList.remove('open'); }
+
+// ═══════════════════════════════════════════
+// AVATAR MODAL
+// ═══════════════════════════════════════════
+const AVATAR_EMOJIS=['👩','👩🏻','👩🏼','👩🏽','👩🏾','👩🏿','👨','👨🏻','👨🏼','👨🏽','👨🏾','👨🏿','🧑','🧑🏻','🧑🏼','🧑🏽','🧑🏾','🧑🏿','😊','🌟'];
+
+function openAvatarModal() {
+  pendingAvatar={...userAvatar};
+  const grid=document.getElementById('avatar-emoji-grid');
+  grid.innerHTML='';
+  AVATAR_EMOJIS.forEach(em=>{
+    const el=document.createElement('div'); el.className='avatar-emoji-opt';
+    el.textContent=em;
+    if(userAvatar.type==='emoji'&&userAvatar.value===em) el.classList.add('selected-av');
+    el.onclick=()=>{
+      document.querySelectorAll('.avatar-emoji-opt').forEach(x=>x.classList.remove('selected-av'));
+      el.classList.add('selected-av');
+      pendingAvatar={type:'emoji',value:em};
+      updateAvatarPreview();
+    };
+    grid.appendChild(el);
+  });
+  updateAvatarPreview();
+  document.getElementById('avatar-modal').classList.add('open');
+}
+
+function updateAvatarPreview() {
+  const prev=document.getElementById('avatar-preview');
+  if(!pendingAvatar) return;
+  if(pendingAvatar.type==='none'){
+    prev.innerHTML='<div class="avatar-none"></div>'; prev.style.background='#3a6ea8';
+  } else if(pendingAvatar.type==='image'){
+    prev.innerHTML=`<img src="${pendingAvatar.url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`; prev.style.background='none';
+  } else {
+    prev.innerHTML=pendingAvatar.value; prev.style.background='linear-gradient(135deg,#f5a623,#f07fa0)';
+  }
+}
+
+function previewAvatarUpload(event) {
+  const f=event.target.files[0]; if(!f) return;
+  const url=URL.createObjectURL(f);
+  pendingAvatar={type:'image',url};
+  updateAvatarPreview();
+  document.querySelectorAll('.avatar-emoji-opt').forEach(x=>x.classList.remove('selected-av'));
+  event.target.value='';
+}
+
+function setAvatarNone() {
+  pendingAvatar={type:'none'};
+  document.querySelectorAll('.avatar-emoji-opt').forEach(x=>x.classList.remove('selected-av'));
+  updateAvatarPreview();
+}
+
+function saveAvatar() {
+  userAvatar={...pendingAvatar};
+  applyAvatarToUI();
+  closeAvatarModal();
+  showToast('✅ Avatar updated!');
+}
+
+function applyAvatarToUI() {
+  const navEl=document.getElementById('nav-avatar-display');
+  const profEl=document.getElementById('profile-avatar-display');
+  const prevEl=document.getElementById('avatar-preview');
+  [navEl, profEl].forEach(el=>{
+    el.innerHTML='';
+    if(userAvatar.type==='none'){
+      el.style.background='#3a6ea8'; el.style.fontSize='0';
+    } else if(userAvatar.type==='image'){
+      el.style.background='none';
+      const img=document.createElement('img'); img.src=userAvatar.url; img.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';
+      el.appendChild(img);
+    } else {
+      el.style.background='linear-gradient(135deg,#f5a623,#f07fa0)'; el.textContent=userAvatar.value;
+    }
+  });
+}
+
+function closeAvatarModal() { document.getElementById('avatar-modal').classList.remove('open'); }
+
+// ═══════════════════════════════════════════
+// PROFILE
+// ═══════════════════════════════════════════
+function buildProfile() {
+  const list=document.getElementById('profile-list'); list.innerHTML='';
+  PROFILE_CONTRIBS.forEach((pc,i)=>{
+    const el=document.createElement('div'); el.className='profile-item';
+    el.innerHTML=`
+      <div style="width:12px;height:12px;border-radius:50%;background:${pc.catColor};flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div class="profile-item-loc">📍 ${pc.locName} <span class="cat-badge" style="background:${pc.catColor};font-size:11px;padding:2px 9px">${pc.catLabel}</span></div>
+        <div class="profile-item-preview">${pc.title||'Contribution'}</div>
+      </div>
+      <button class="edit-btn" onclick="event.stopPropagation();openEditModal('${pc.contribId}','${pc.contribKey}')">Edit</button>
+      <div class="arrow-icon" style="font-size:22px">›</div>`;
+    el.onclick=()=>{
+      document.querySelectorAll('.profile-item').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active');
+      // Find contribution
+      const arr=CONTRIBS[pc.contribKey]||[];
+      const c=arr.find(x=>x.id===pc.contribId);
+      if(c) showProfileDetail(c,pc);
+      else showProfileDetail({title:pc.title,loc:pc.locName,cat:'red',text:'',imgs:[],mediaUrls:[],mediaTypes:[],user:'Sophia',flag:'🇵🇭',verified:true,isOwn:true},pc);
+    };
+    list.appendChild(el);
+  });
+}
+
+function showProfileDetail(c, pc) {
+  const body=document.getElementById('profile-detail-body');
+  const color=pc.catColor;
+  const hasReal=c.mediaUrls&&c.mediaUrls.length>0;
+  const hasEmoji=c.imgs&&c.imgs.length>0;
+  let mediaHtml='';
+  if(hasReal){const cols=c.mediaUrls.length>1?'1fr 1fr':'1fr';mediaHtml=`<div class="detail-media-grid has-media" style="grid-template-columns:${cols}">${c.mediaUrls.map((url,i)=>c.mediaTypes[i]==='video'?`<video src="${url}" controls class="detail-media-video"></video>`:`<img src="${url}" class="detail-media-img">`).join('')}</div>`;}
+  else if(hasEmoji){const cols=c.imgs.length>1?'1fr 1fr':'1fr';mediaHtml=`<div class="detail-media-grid has-media" style="grid-template-columns:${cols}">${c.imgs.map(em=>`<div class="emoji-placeholder" style="background:linear-gradient(135deg,${color}22,${color}44)">${em}</div>`).join('')}</div>`;}
+  else {mediaHtml=`<div class="detail-media-grid"><div style="text-align:center;color:#ccc;font-size:13px">📷 No photos</div></div>`;}
+  body.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div class="contrib-avatar-sm" style="width:44px;height:44px;font-size:22px;background:linear-gradient(135deg,${color}88,${color}33)">🇵🇭</div>
+      <div><div style="font-weight:800;font-size:14px;display:flex;align-items:center;gap:6px">Sophia <div class="verified-badge" style="width:16px;height:16px;font-size:9px">✓</div></div></div>
+    </div>
+    <div class="detail-title">${c.title}</div>
+    <div class="detail-loc">📍 ${c.loc||pc.locName}</div>
+    ${mediaHtml}
+    <div class="detail-text">${c.text||''}</div>
+    <button class="detail-edit-btn" onclick="openEditModal('${c.id}','${pc.contribKey}')">✏️ Edit this contribution</button>`;
+  body.classList.add('fade-up'); setTimeout(()=>body.classList.remove('fade-up'),400);
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function navTo(page) {
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const nb=document.getElementById('nav-'+page);
+  if(nb) nb.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const mc=document.getElementById('map-container');
+  const at=document.getElementById('archive-title');
+  const ws=document.getElementById('want-to-share');
+  const ppb=document.getElementById('place-pin-btn');
+  const mapPages=['home','archive'];
+  const fullPages=['about','guide','profile','contact'];
+
+  if(page==='home'){
+    mc.style.zIndex=1; at.classList.remove('show'); ws.style.display=''; ppb.style.display='';
+    currentMode='home';
+    if(map){if(!map.hasLayer(userLayer))userLayer.addTo(map);if(!map.hasLayer(archiveLayer))archiveLayer.addTo(map);}
+    closePanels();
+  } else if(page==='archive'){
+    mc.style.zIndex=1; at.classList.add('show'); ws.style.display='none'; ppb.style.display='';
+    currentMode='archive';
+    if(map){if(map.hasLayer(userLayer))map.removeLayer(userLayer);if(!map.hasLayer(archiveLayer))archiveLayer.addTo(map);}
+    closePanels();
+  } else {
+    mc.style.zIndex=0; at.classList.remove('show'); ws.style.display='none'; ppb.style.display='none';
+    currentMode='home';
+    if(map){if(!map.hasLayer(userLayer))userLayer.addTo(map);if(!map.hasLayer(archiveLayer))archiveLayer.addTo(map);}
+    const pageEl=document.getElementById('page-'+page);
+    if(pageEl) pageEl.classList.add('active');
+    closePanels();
+    if(page==='profile') buildProfile();
+    if(page==='about') {document.getElementById('nav-about').classList.add('active');}
+    if(page==='guide') {document.getElementById('nav-about').classList.add('active');}
+  }
+  if(map) setTimeout(()=>map.invalidateSize(),350);
+}
+
+// ═══════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  t.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3400);
+}
+
+// ── Close modal on overlay click ──
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('pin-modal').addEventListener('click',e=>{if(e.target===document.getElementById('pin-modal'))closePinModal();});
+  document.getElementById('avatar-modal').addEventListener('click',e=>{if(e.target===document.getElementById('avatar-modal'))closeAvatarModal();});
+});
+</script>
+</body>
+</html>
