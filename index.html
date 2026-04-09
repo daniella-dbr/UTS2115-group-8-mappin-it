@@ -1564,7 +1564,7 @@ async function submitOrSavePin() {
     lng:         activePinLatlng ? activePinLatlng.lng : null,
     cat:         selectedCat,
     contrib_key: ck,
-    user_id:     isIn ? AUTH.user.id : null,
+    user_id:     (isIn && AUTH.user.id !== 'sophia') ? AUTH.user.id : null,
     user_name:   userName,
     user_flag:   userFlag,
     is_public:   !isIn,
@@ -1849,18 +1849,34 @@ function toggleUserDD(){const dd=document.getElementById('user-dd');if(dd)dd.cla
 ═══════════════════════════════════════════ */
 async function finalCreateAccount() {
   if (!signupDraft) return;
-  const email    = signupDraft.email
-    || (signupDraft.name.toLowerCase().replace(/\s+/g,'_') + '_' + Date.now() + '@mappin-placeholder.com');
-  const password = signupDraft.password || crypto.randomUUID();
 
-  const { data, error } = await sb.auth.signUp({ email, password });
-  if (error) { showToast('⚠️ ' + error.message); return; }
+  const hasEmail    = signupDraft.email && signupDraft.email.includes('@');
+  const hasPassword = signupDraft.password && signupDraft.password.length > 0;
 
+  let userId = null;
+
+  if (hasEmail && hasPassword) {
+    // Full account with email + password — can log back in later
+    const { data, error } = await sb.auth.signUp({
+      email:    signupDraft.email,
+      password: signupDraft.password,
+    });
+    if (error) { showToast('⚠️ ' + error.message); return; }
+    userId = data.user.id;
+
+  } else {
+    // No email provided — use anonymous sign-in (no email sent, no rate limit)
+    const { data, error } = await sb.auth.signInAnonymously();
+    if (error) { showToast('⚠️ ' + error.message); return; }
+    userId = data.user.id;
+  }
+
+  // Save profile to database
   await sb.from('profiles').insert({
-    id:          data.user.id,
+    id:          userId,
     name:        signupDraft.name,
     country:     signupDraft.country || '',
-    flag:        signupDraft.flag || '🌍',
+    flag:        signupDraft.flag    || '🌍',
     avatar_type: signupDraftAvatar.type,
     avatar_val:  signupDraftAvatar.value || '👩',
   });
@@ -1868,17 +1884,18 @@ async function finalCreateAccount() {
   AUTH = {
     state: 'in',
     user: {
-      id:      data.user.id,
-      name:    signupDraft.name,
-      country: signupDraft.country,
-      flag:    signupDraft.flag,
+      id:       userId,
+      name:     signupDraft.name,
+      country:  signupDraft.country,
+      flag:     signupDraft.flag,
       verified: false,
+      email:    signupDraft.email || '',
     }
   };
   userAvatar = { ...signupDraftAvatar };
-  avatarStore[data.user.id] = { ...signupDraftAvatar };
+  avatarStore[userId] = { ...signupDraftAvatar };
   PAST_ACCOUNTS.push(AUTH.user);
-  USER_PROFILE_CONTRIBS[data.user.id] = [];
+  USER_PROFILE_CONTRIBS[userId] = [];
   signupDraft = null;
   renderNav();
   navTo('home');
@@ -1929,6 +1946,7 @@ function loginAsGuest() {
 }
 
 async function loginAs(acct) {
+  // Sophia — local account, no Supabase auth needed
   if (acct.id === 'sophia') {
     AUTH = { state: 'in', user: acct };
     userAvatar = { ...(avatarStore['sophia'] || { type: 'emoji', value: '👩' }) };
@@ -1937,10 +1955,19 @@ async function loginAs(acct) {
     showToast('👋 Welcome back, ' + acct.name + '!');
     return;
   }
+
+  // Anonymous account — log back in silently via session restore
+  // (checkSession handles this automatically on page load)
+  if (!acct.email) {
+    showToast('⚠️ This account was created without an email and cannot be logged back into manually. Your contributions are still visible on the map.');
+    return;
+  }
+
+  // Full email account — prompt for password
   const password = window.prompt('Enter your password for ' + acct.name + ':');
   if (!password) return;
   const { data, error } = await sb.auth.signInWithPassword({
-    email:    acct.email || '',
+    email:    acct.email,
     password: password,
   });
   if (error) { showToast('⚠️ Incorrect password.'); return; }
