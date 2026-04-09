@@ -1564,7 +1564,7 @@ async function submitOrSavePin() {
     lng:         activePinLatlng ? activePinLatlng.lng : null,
     cat:         selectedCat,
     contrib_key: ck,
-    user_id:     (isIn && AUTH.user.id !== 'sophia') ? AUTH.user.id : null,
+    user_id: (isIn && AUTH.user && AUTH.user.id !== 'sophia') ? AUTH.user.id : null,
     user_name:   userName,
     user_flag:   userFlag,
     is_public:   !isIn,
