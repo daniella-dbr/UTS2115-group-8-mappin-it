@@ -711,8 +711,8 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);color:var(--text);hei
 /* ═══════════════════════════════════════════
    SUPABASE CONNECTION
 ═══════════════════════════════════════════ */
-const SUPA_URL = 'https://abcdefgh.supabase.co';   // paste your Project URL here
-const SUPA_KEY = 'eyJhbGci...';                     // paste your anon/public key here
+const SUPA_URL = 'https://dxlteqzeqnzjankhfqkk.supabase.co';   // paste your Project URL here
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4bHRlcXplcW56amFua2hmcWtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MjA5NjUsImV4cCI6MjA5MTI5Njk2NX0.8btEfDOZzZ5YW6eqmap2gqfA3hqHytJsrWVFoLLyxsQ';                     // paste your anon/public key here
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 /* ═══════════════════════════════════════════
@@ -1165,8 +1165,8 @@ window.addEventListener('load', async () => {
     const fw = document.getElementById('filter-wrap');
     if (fw && !fw.contains(e.target)) closeFilterMenu();
 
-    checkSession();
   });
+  checkSession();
 });
 
 function addPresetPins() {
@@ -1843,8 +1843,6 @@ function renderNav() {
 }
 function toggleUserDD(){const dd=document.getElementById('user-dd');if(dd)dd.classList.toggle('open');}
 
-
-function loginAsGuest(){AUTH={state:'guest',user:null};renderNav();navTo('home');showToast('👋 Continuing as Guest');}
 
 /* ═══════════════════════════════════════════
    AUTH — Supabase
