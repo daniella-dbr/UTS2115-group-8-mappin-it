@@ -462,14 +462,14 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);color:var(--text);hei
         <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#8e44ad"></div>Fun Activities</div>
         <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#357bd8"></div>Resources</div>
         <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#d4822a"></div>Organisation</div>
-        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#aaa;border-color:#999"></div>Moderator</div>
+        <div class="cat-legend-item"><div class="cat-dot-lg" style="background:#aaa;border-color:#999"></div>For Your Information</div>
       </div>
     </div>
 
     <div class="guide-section">
       <h2>Filtering Pins</h2>
       <div class="guide-step"><div class="step-num">1</div><div class="step-text">Use the <strong>Filter Dropdown</strong> at the top-right of the map to isolate pins by category — All Pins, Archive, Upcoming Events, or any specific category.</div></div>
-      <div class="guide-step"><div class="step-num">2</div><div class="step-text"><strong>Archive</strong> shows past events and initiatives from organisations and moderators. <strong>Upcoming Events</strong> shows planned future activities.</div></div>
+      <div class="guide-step"><div class="step-num">2</div><div class="step-text"><strong>Archive</strong> shows past events and initiatives from organisations and website coordinators <strong>Upcoming Events</strong> shows planned future activities.</div></div>
     </div>
 
     <div class="guide-section">
@@ -727,7 +727,7 @@ const CAT = {
   purple: {label:'Fun Activities',   color:'#8e44ad', emoji:'🎉'},
   blue:   {label:'Resources',        color:'#357bd8', emoji:'📋'},
   orange: {label:'Organisation',     color:'#d4822a', emoji:'🏢'},
-  white:  {label:'Moderator',        color:'#888',    emoji:'💡'},
+  white:  {label:'For Your Information',        color:'#888',    emoji:'💡'},
 };
 
 /* ═══════════════════════════════════════════
@@ -828,13 +828,13 @@ const CONTRIBS = {
     {id:'ka1',title:'Kaugnay Community Gathering',user:'Kaugnay',flag:'🇵🇭',verified:true,loc:'Kaugnay Centre',cat:'orange',upcoming:false,date:'July 2024',text:'Our July 2024 gathering brought together over 200 workers for food, performances, and workers\' rights information.',imgs:['🎭','🤝'],mediaUrls:[],mediaTypes:[]},
   ],
   mom_white:[
-    {id:'mw1',title:'FYI: Rest Day Rights',user:'Moderator',flag:'🏛️',verified:true,loc:'Ministry of Manpower HQ',cat:'white',upcoming:false,text:'MDWs in Singapore are mandated to have at least one rest day per week. Employers can compensate MDWs for forfeited rest days, except for one compulsory day off per month.',imgs:['💡','📜'],mediaUrls:[],mediaTypes:[]},
+    {id:'mw1',title:'FYI: Rest Day Rights',user:'Coordinator',flag:'🏛️',verified:true,loc:'Ministry of Manpower HQ',cat:'white',upcoming:false,text:'MDWs in Singapore are mandated to have at least one rest day per week. Employers can compensate MDWs for forfeited rest days, except for one compulsory day off per month.',imgs:['💡','📜'],mediaUrls:[],mediaTypes:[]},
   ],
   sgh_white:[
-    {id:'sw1',title:'FYI: Medical Entitlements',user:'Moderator',flag:'🏛️',verified:true,loc:'Singapore General Hospital',cat:'white',upcoming:false,text:'Employers must purchase medical insurance covering at least $60,000/year for their MDW and pay all medical expenses.',imgs:['🏥','💊'],mediaUrls:[],mediaTypes:[]},
+    {id:'sw1',title:'FYI: Medical Entitlements',user:'Coordinator',flag:'🏛️',verified:true,loc:'Singapore General Hospital',cat:'white',upcoming:false,text:'Employers must purchase medical insurance covering at least $60,000/year for their MDW and pay all medical expenses.',imgs:['🏥','💊'],mediaUrls:[],mediaTypes:[]},
   ],
   tp_white:[
-    {id:'tw1',title:'FYI: MDW Numbers in SG',user:'Moderator',flag:'🏛️',verified:true,loc:'Toa Payoh Hub',cat:'white',upcoming:false,text:'As of 2024, approximately 267,000 Migrant Domestic Workers live in Singapore, primarily from the Philippines, Indonesia, and Myanmar.',imgs:['📊','🌏'],mediaUrls:[],mediaTypes:[]},
+    {id:'tw1',title:'FYI: MDW Numbers in SG',user:'Coordinator',flag:'🏛️',verified:true,loc:'Toa Payoh Hub',cat:'white',upcoming:false,text:'As of 2024, approximately 267,000 Migrant Domestic Workers live in Singapore, primarily from the Philippines, Indonesia, and Myanmar.',imgs:['📊','🌏'],mediaUrls:[],mediaTypes:[]},
   ],
 
   // ── GENERAL LOCATION CONTRIBUTIONS ──────────────────────────────────────
@@ -1289,7 +1289,7 @@ const FILTER_DEFS = [
   {key:'purple',   label:'Fun Activities',    emoji:'🎉', color:'#8e44ad'},
   {key:'blue',     label:'Resources',         emoji:'📋', color:'#357bd8'},
   {key:'orange',   label:'Organisation',      emoji:'🏢', color:'#d4822a'},
-  {key:'white',    label:'Moderator',         emoji:'💡', color:'#888'},
+  {key:'white',    label:'For Your Information',         emoji:'💡', color:'#888'},
 ];
 function buildFilterMenu() {
   const menu = document.getElementById('filter-menu'); menu.innerHTML='';
